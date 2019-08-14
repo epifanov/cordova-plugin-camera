@@ -66,6 +66,10 @@ import android.util.Base64;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 
+import com.rollbar.notifier.Rollbar;
+import com.rollbar.notifier.config.Config;
+import com.rollbar.notifier.config.ConfigBuilder;
+
 /**
  * This class launches the camera view, allows the user to take a picture, closes the camera view,
  * and returns the captured image.  When the camera view is closed, the screen displayed before
@@ -123,6 +127,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private Uri croppedUri;
     private ExifHelper exifData;            // Exif data from source
     private String applicationId;
+    public Config config;
+    public Rollbar rollbar;
 
 
     /**
@@ -134,12 +140,16 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @return                  A PluginResult object with a status and message.
      */
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
+        config = ConfigBuilder.withAccessToken("token")
+            .environment("production")
+            .codeVersion("1.0.0")
+            .build();
+        rollbar = new Rollbar(config);
         this.callbackContext = callbackContext;
         //Adding an API to CoreAndroid to get the BuildConfigValue
         //This allows us to not make this a breaking change to embedding
         this.applicationId = (String) BuildHelper.getBuildConfigValue(cordova.getActivity(), "APPLICATION_ID");
         this.applicationId = preferences.getString("applicationId", this.applicationId);
-
 
         if (action.equals("takePicture")) {
             this.srcType = CAMERA;
@@ -180,6 +190,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             }
 
             try {
+                rollbar.info("src type: "+this.srcType);
                 if (this.srcType == CAMERA) {
                     this.callTakePicture(destType, encodingType);
                 }
@@ -194,6 +205,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             }
             catch (IllegalArgumentException e)
             {
+                rollbar.error(e, "IllegalArgumentException");
                 callbackContext.error("Illegal Argument Exception");
                 PluginResult r = new PluginResult(PluginResult.Status.ERROR);
                 callbackContext.sendPluginResult(r);
@@ -267,11 +279,12 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                     }
                 }
             } catch (NameNotFoundException e) {
+                rollbar.error(e, "callTakePicture error");
                 // We are requesting the info for our package, so this should
                 // never be caught
             }
         }
-
+        rollbar.info("permissions: "+takePicturePermission+" "+saveAlbumPermission);
         if (takePicturePermission && saveAlbumPermission) {
             takePicture(returnType, encodingType);
         } else if (saveAlbumPermission && !takePicturePermission) {
@@ -286,27 +299,31 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
     public void takePicture(int returnType, int encodingType)
     {
+        rollbar.info("Save the number of images currently on disk for later");
         // Save the number of images currently on disk for later
         this.numPics = queryImgDB(whichContentStore()).getCount();
-
+        rollbar.info("Let's use the intent and see what happens");
         // Let's use the intent and see what happens
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-
+        rollbar.info("Specify file so that large image is captured and returned");
         // Specify file so that large image is captured and returned
         File photo = createCaptureFile(encodingType);
         this.imageUri = new CordovaUri(FileProvider.getUriForFile(cordova.getActivity(),
                 applicationId + ".provider",
                 photo));
+
         intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, imageUri.getCorrectUri());
+        rollbar.info("We can write to this URI, this will hopefully allow us to write files to get to the next step");
         //We can write to this URI, this will hopefully allow us to write files to get to the next step
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
         if (this.cordova != null) {
+            rollbar.info("Let's check to make sure the camera is actually installed. (Legacy Nexus 7 code)");
             // Let's check to make sure the camera is actually installed. (Legacy Nexus 7 code)
             PackageManager mPm = this.cordova.getActivity().getPackageManager();
             if(intent.resolveActivity(mPm) != null)
             {
-
+                rollbar.info("before send result");
                 this.cordova.startActivityForResult((CordovaPlugin) this, intent, (CAMERA + 1) * 16 + returnType + 1);
             }
             else
