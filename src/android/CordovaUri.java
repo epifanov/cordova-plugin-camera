@@ -43,13 +43,13 @@ public class CordovaUri {
      * We always expect a FileProvider string to be passed in for the file that we create
      *
      */
-    CordovaUri (Uri inputUri)
+    CordovaUri (Uri inputUri, String filenameFromUri)
     {
         //Determine whether the file is a content or file URI
         if(inputUri.getScheme().equals("content"))
         {
             androidUri = inputUri;
-            fileName = getFileNameFromUri(androidUri);
+            fileName = filenameFromUri;
             fileUri = Uri.parse("file://" + fileName);
         }
         else
@@ -79,26 +79,5 @@ public class CordovaUri {
             return androidUri;
         else
             return fileUri;
-    }
-
- /*
-  * This is dirty, but it does the job.
-  *
-  * Since the FilesProvider doesn't really provide you a way of getting a URL from the file,
-  * and since we actually need the Camera to create the file for us most of the time, we don't
-  * actually write the file, just generate the location based on a timestamp, we need to get it
-  * back from the Intent.
-  *
-  * However, the FilesProvider preserves the path, so we can at least write to it from here, since
-  * we own the context in this case.
- */
-
-    private String getFileNameFromUri(Uri uri) {
-        String fullUri = uri.toString();
-        String partial_path = fullUri.split("external_files")[1];
-        File external_storage = Environment.getExternalStorageDirectory();
-        String path = external_storage.getAbsolutePath() + partial_path;
-        return path;
-
     }
 }
