@@ -66,10 +66,6 @@ import android.util.Base64;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 
-import com.rollbar.notifier.Rollbar;
-import com.rollbar.notifier.config.Config;
-import com.rollbar.notifier.config.ConfigBuilder;
-
 /**
  * This class launches the camera view, allows the user to take a picture, closes the camera view,
  * and returns the captured image.  When the camera view is closed, the screen displayed before
@@ -131,7 +127,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private String applicationId;
     private boolean mediaMounted;
     public Config config;
-    public Rollbar rollbar;
 
 
     /**
@@ -143,11 +138,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @return                  A PluginResult object with a status and message.
      */
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
-        config = ConfigBuilder.withAccessToken("token")
-            .environment("production")
-            .codeVersion("1.0.0")
-            .build();
-        rollbar = new Rollbar(config);
         this.callbackContext = callbackContext;
         //Adding an API to CoreAndroid to get the BuildConfigValue
         //This allows us to not make this a breaking change to embedding
@@ -209,7 +199,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             }
             catch (IllegalArgumentException e)
             {
-                rollbar.error(e, "IllegalArgumentException");
                 callbackContext.error("Illegal Argument Exception");
                 PluginResult r = new PluginResult(PluginResult.Status.ERROR);
                 callbackContext.sendPluginResult(r);
@@ -283,7 +272,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                     }
                 }
             } catch (NameNotFoundException e) {
-                rollbar.error(e, "callTakePicture error");
                 // We are requesting the info for our package, so this should
                 // never be caught
             }
@@ -308,32 +296,26 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         // Specify file so that large image is captured and returned
         File photo = createCaptureFile(encodingType);
-        rollbar.info("filepath: "+photo.getAbsolutePath());
         try {
             Uri uriForFile = FileProvider.getUriForFile(cordova.getActivity(),
                     applicationId + ".provider",
                     photo);
             this.imageUri = new CordovaUri(uriForFile, getFileNameFromUri(uriForFile));
         } catch (Exception e) {
-            rollbar.error(e);
         }
         intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, imageUri.getCorrectUri());
-        rollbar.info("We can write to this URI, this will hopefully allow us to write files to get to the next step");
         //We can write to this URI, this will hopefully allow us to write files to get to the next step
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
         if (this.cordova != null) {
-            rollbar.info("Let's check to make sure the camera is actually installed. (Legacy Nexus 7 code)");
             // Let's check to make sure the camera is actually installed. (Legacy Nexus 7 code)
             PackageManager mPm = this.cordova.getActivity().getPackageManager();
             if(intent.resolveActivity(mPm) != null)
             {
-                rollbar.info("before send result");
                 this.cordova.startActivityForResult((CordovaPlugin) this, intent, (CAMERA + 1) * 16 + returnType + 1);
             }
             else
             {
-                rollbar.error("Error: You don't have a default camera.  Your device may not be CTS complaint.");
                 LOG.d(LOG_TAG, "Error: You don't have a default camera.  Your device may not be CTS complaint.");
             }
         }
@@ -498,7 +480,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 FileHelper.stripFileProtocol(this.croppedUri.toString()) :
                 this.imageUri.getFilePath();
 
-        rollbar.info("sourcePath: "+sourcePath);
         if (this.encodingType == JPEG) {
             try {
                 //We don't support PNG, so let's not pretend we do
@@ -507,7 +488,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 rotate = exif.getOrientation();
 
             } catch (IOException e) {
-                rollbar.error(e);
                 e.printStackTrace();
             }
         }
@@ -1400,12 +1380,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
         if (state.containsKey("imageUri")) {
             //I have no idea what type of URI is being passed in
-            try {
-                this.imageUri = new CordovaUri(Uri.parse(state.getString("imageUri")),
-                        getFileNameFromUri(Uri.parse(state.getString("imageUri"))));
-            } catch (Exception e) {
-                rollbar.error(e);
-            }
+            this.imageUri = new CordovaUri(Uri.parse(state.getString("imageUri")),
+                    getFileNameFromUri(Uri.parse(state.getString("imageUri"))));
         }
         this.callbackContext = callbackContext;
     }
