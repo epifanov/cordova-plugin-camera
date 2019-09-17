@@ -126,7 +126,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private ExifHelper exifData;            // Exif data from source
     private String applicationId;
     private boolean mediaMounted;
-    public Config config;
 
 
     /**
